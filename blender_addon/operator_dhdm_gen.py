@@ -28,10 +28,12 @@ class GenerateNewMorphFiles(dhdmGenBaseOperator):
         if not self.check_all_matching_files(self.hd_level):
             return {'CANCELLED'}
 
-        r = self.generate_dsf_file(context)
-        if not r:
-            self.cleanup(context)
-            return {'CANCELLED'}
+        self.morph_files_diroutput = self.create_new_morphs_subdir()
+        self.morph_files_filename = "prueba0_div{0}".format(self.hd_level).strip()
+        # ~ r = self.generate_dsf_file(context)
+        # ~ if not r:
+            # ~ self.cleanup(context)
+            # ~ return {'CANCELLED'}
         r = self.generate_dhdm_file(context)
         self.cleanup(context)
         if not r:
@@ -114,7 +116,7 @@ class GenerateNewMorphFiles(dhdmGenBaseOperator):
         delta_dz_min_len = 0.03
         deltas_values = []
         for i, v in enumerate(ob_base_copy.data.vertices):
-            delta_blend = Vector( hd_ob_copy.data.vertices[i].co - v.co ) - initial_deltas[i]
+            delta_blend = Vector( hd_ob_copy.data.vertices[i].co - v.co ) #- initial_deltas[i]
             delta_dz = (1.0 / self.gScale) * (self.blend_to_dz_mat @ delta_blend)
             if delta_dz.length > delta_dz_min_len:
                 deltas_values.append( [i, delta_dz[0], delta_dz[1], delta_dz[2]] )
@@ -128,8 +130,6 @@ class GenerateNewMorphFiles(dhdmGenBaseOperator):
         return base_morph_info
 
     def generate_dsf_file(self, context):
-        self.morph_files_diroutput = self.create_new_morphs_subdir()
-        self.morph_files_filename = "prueba0_div{0}".format(self.hd_level).strip()
         dsf_new_id = self.morph_files_filename
 
         if not re.match(r"^\w+$", self.morph_files_filename):
@@ -162,16 +162,15 @@ class GenerateNewMorphFiles(dhdmGenBaseOperator):
         dsf_text = exp.sub(str_sub, dsf_text)
 
         utils.text_to_json_file(self.dsf_fp, dsf_text, with_gzip=True, indent=4)
-
-        return False
+        return True
 
     def generate_dhdm_file(self, context):
         print("Generating dhdm file...")
         filepaths_list = self.mfiles.get_filepaths(self.hd_level)
 
         f_name = "base"
-        # ~ fp_base = self.export_ob_obj( self.base_ob, f_name, apply_modifiers=False )
-        fp_base = self.export_ob_obj( self.hd_ob, f_name, apply_modifiers=False )
+        fp_base = self.export_ob_obj( self.base_ob, f_name, apply_modifiers=False )
+        # ~ fp_base = self.export_ob_obj( self.hd_ob, f_name, apply_modifiers=False )
 
         hd_ob_ms = utils.ModifiersStatus(self.hd_ob, 'ENABLE_ONLY', m_types={'SUBDIV'})
         f_name += "_hd_edit"

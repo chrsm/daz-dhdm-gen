@@ -7,9 +7,9 @@ bl_info = {
     'name': 'daz dhdm generator',
     'author': 'Xin',
     'version': (0, 0, 1),
-    'blender': (3, 4, 0),
+    'blender': (3, 6, 0),
     'location': '3d view > N panel > dhdm tab',
-    'description': 'Generate .dhdm files',
+    'description': 'Generate .dhdm files from Blender meshes',
     "doc_url": "https://bitbucket.org/Diffeomorphic/import_daz/issues/1399/blender-addon-to-generate-rigged-hd-meshes",
     "tracker_url": "https://gitlab.com/x190/daz-hd-morphs",
     'category': 'Mesh'

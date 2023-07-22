@@ -8,9 +8,10 @@
 
 nlohmann::json readJSON(const std::string & fp)
 {
+    std::cout << "Reading " << "\"" << fp << "\"" << "...";
     auto fs = std::fstream(fp, std::fstream::in | std::fstream::binary);
     if (!fs)
-        throw std::runtime_error("Can't open file");
+        throw std::runtime_error("can't open file.");
 
     unsigned char magic[2];
     fs.read((char *) magic, sizeof(magic));
@@ -29,6 +30,7 @@ nlohmann::json readJSON(const std::string & fp)
     }
 
     fs.close();
+    std::cout << "done." << std::endl;
     return json;
 }
 

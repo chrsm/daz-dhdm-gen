@@ -24,7 +24,6 @@ class FilepathsInfo(ctypes.Structure):
         self.fps_count = ctypes.c_ushort( fps_count )
         self.filepaths = ctypes.cast( filepaths, ctypes.POINTER(ctypes.c_char_p) )
 
-
 class MeshInfo(ctypes.Structure):
     _fields_ = [ ("gScale", ctypes.c_float ),
                  ("base_exportedf", ctypes.c_char_p),

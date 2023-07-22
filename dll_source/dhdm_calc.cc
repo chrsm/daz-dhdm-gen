@@ -67,10 +67,13 @@ void DhdmWriter::calculateDhdm()
 
     const bool do_translate = (fps_info != nullptr) && (fps_info->fps_count > 0);
     nlohmann::json vi_translate;
-    if ( do_translate && fps_info->fps_count < level )
-        throw std::runtime_error( fmt::format("matching files have max level {} < subdivisions level {}",
+    if (do_translate)
+    {
+        if ( fps_info->fps_count < level )
+            throw std::runtime_error( fmt::format("matching files with max level {} < subdivisions level {}",
                                               fps_info->fps_count, level ) );
-    vi_translate = readJSON( fps_info->filepaths[level] );
+        vi_translate = readJSON( fps_info->filepaths[level-1] );
+    }
 
     std::cout << "Calculating dhdm...\n";
 
@@ -98,15 +101,14 @@ void DhdmWriter::calculateDhdm()
     /* material faces */
     std::vector<uint32_t> matIdbuffer;
     {
-        matIdbuffer.resize( last_level_faces );
-        std::vector<uint32_t> matIdbuffer_pv( refiner->GetNumFacesTotal() - last_level_faces );
+        matIdbuffer.resize( refiner->GetNumFacesTotal() );
         int face_offset = base_mesh_sd.faces.size();
         for ( size_t i=0; i < face_offset; i++ )
-            matIdbuffer_pv[i] = base_mesh_sd.faces[i].matId;
-        uint32_t * srcFUnifMat = matIdbuffer_pv.data();
+            matIdbuffer[i] = base_mesh_sd.faces[i].matId;
+        uint32_t * srcFUnifMat = matIdbuffer.data();
         for (unsigned int lvl = 1; lvl <= level; ++lvl)
         {
-            auto dstFUnifMat = (lvl == level) ? matIdbuffer.data() : (matIdbuffer_pv.data() + face_offset);
+            auto dstFUnifMat = (matIdbuffer.data() + face_offset);
             primvarRefiner.InterpolateFaceUniform(lvl, srcFUnifMat, dstFUnifMat);
             srcFUnifMat = dstFUnifMat;
             face_offset += refiner->GetLevel(lvl).GetNumFaces();
@@ -117,11 +119,13 @@ void DhdmWriter::calculateDhdm()
     std::vector<dhdm::Vertex> vbuffer_pv( refiner->GetNumVerticesTotal() - base_mesh_sd.vertices.size() );
     dhdm::Vertex * srcVerts = base_mesh_sd.vertices.data();
     size_t vert_offset = 0;
-    size_t face_offset = 0;
+    size_t face_offset = base_mesh_sd.faces.size();
     size_t prev_level_verts = base_mesh_sd.vertices.size();
+    // std::set<uint32_t> inserted_verts;
 
     for (unsigned int lvl = 1; lvl <= level; ++lvl)
     {
+        std::cout << "Calculating level " << lvl << "...";
         auto dstVerts = vbuffer_pv.data() + vert_offset;
         primvarRefiner.Interpolate(lvl, srcVerts, dstVerts);
 
@@ -156,8 +160,10 @@ void DhdmWriter::calculateDhdm()
                 const uint32_t vert_idx = (uint32_t) fverts[j];
                 // const uint32_t uv_idx = (uint32_t) fvuvs[j];
 
-                if (vert_idx < prev_level_verts)
-                    continue;
+                //if (vert_idx < prev_level_verts)
+                //    continue;
+                //if (lvl == 1)
+                //    continue;
                 if (inserted_verts.count(vert_idx) > 0)
                     continue;
 
@@ -165,7 +171,18 @@ void DhdmWriter::calculateDhdm()
                 glm::dvec3 delta;
                 if (do_translate)
                 {
-                    const unsigned int vi = vi_translate[vert_idx];
+                    const std::string vert_idx_str = std::to_string(vert_idx);
+                    if (!vi_translate.contains(vert_idx_str))
+                    {
+                        throw std::runtime_error( fmt::format("Vertex index {} not found in json.\n",
+                                                  vert_idx_str) );
+                    }
+                    const unsigned int vi = vi_translate[vert_idx_str];
+                    if (vi >= hd_mesh->vertices.size())
+                    {
+                        throw std::runtime_error( fmt::format("Vertex index {} not found in hd_mesh.\n",
+                                                  vi) );
+                    }
                     const glm::dvec3 & hd_vert = hd_mesh->vertices[vi].pos;
                     delta = hd_vert - vert;
                 }
@@ -175,10 +192,19 @@ void DhdmWriter::calculateDhdm()
                     delta = hd_vert - vert;
                 }
 
-                const double minimum_disp = 1e-4;
+                const double minimum_disp = 1e-2;
                 if (glm::length(delta) > minimum_disp)
                 {
                     const uint32_t submat_idx = uint32_t( subface_idx / subFaceOffsetFactor );
+                    /*
+                    std::cout << "lvl = " << lvl << std::endl;
+                    std::cout << "subFaceOffsetFactor = " << subFaceOffsetFactor << std::endl;
+                    std::cout << "this_level_faces = " << this_level_faces << std::endl;
+                    std::cout << "i = " << i << std::endl;
+                    std::cout << "base_face_idx = " << base_face_idx << std::endl;
+                    std::cout << "subface_idx = " << subface_idx << std::endl;
+                    std::cout << "submat_idx = " << submat_idx << std::endl;
+                    */
                     const glm::dvec3 delta_tan = mats[base_face_idx][submat_idx] * delta;
 
                     DhdmWriter::VertDisp vert_disp;
@@ -227,10 +253,11 @@ void DhdmWriter::calculateDhdm()
                         face_disps_map[base_face_idx] = lh.level_disps.size();
                         lh.level_disps.push_back(std::move(lvl_face_disps));
                     }
+
+                    vbuffer_pv[vert_offset + vert_idx].pos += delta;
                 }
             }
         }
-
 
         uint32_t tot_lvl_size = 0;
         for (size_t i = 0; i < lh.level_disps.size(); i++)
@@ -259,11 +286,13 @@ void DhdmWriter::calculateDhdm()
         prev_level_verts = this_level_verts;
     }
 
+    std::cout << "Finished calculating dhdm." << std::endl;
 }
 
 
 void DhdmWriter::writeDhdm(const std::string filepath)
 {
+    std::cout << "Writing \"" << filepath << "\"...\n";
     std::ofstream out_file;
     out_file.open( filepath, std::ofstream::out | std::ofstream::binary | std::ofstream::trunc );
 
@@ -317,5 +346,6 @@ void DhdmWriter::writeDhdm(const std::string filepath)
     }
 
     out_file.close();
+    std::cout << "Done writing .dhdm file.\n";
 }
 

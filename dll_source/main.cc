@@ -44,7 +44,7 @@ DLL_EXPORT int generate_dhdm_file( const MeshInfo* mesh_info,
         dhdm::Mesh baseMesh = dhdm::Mesh::fromObj( fp_base, false, false, true );
         dhdm::Mesh editedhdMesh = dhdm::Mesh::fromObj( fp_hd_edit, false, false, true );
 
-        DhdmWriter dhdm_writer(&baseMesh, &editedhdMesh, fps_info);
+        DhdmWriter dhdm_writer(&baseMesh, &editedhdMesh, fps_info); // nullptr);
         dhdm_writer.calculateDhdm();
 
         const std::string dhdm_filename(output_filename);

@@ -130,13 +130,15 @@ class GenerateMatching(dhdmGenBaseOperator):
 
         max_dist = 3e-3
         max_non_optimal_n = 50
+        max_non_optimal_print_n = 20
         non_optimal_n = 0
         d_vn = {}
         for j, v in enumerate(hd_dz_ob.data.vertices):
             co, i, dist = kd.find(v.co)
             if dist > max_dist:
                 non_optimal_n += 1
-                print("WARNING: vertex matching wasn't optimal (distance = {0}).".format(dist))
+                if non_optimal_n < max_non_optimal_print_n:
+                    print("WARNING: vertex matching wasn't optimal (distance = {0}).".format(dist))
                 if non_optimal_n > max_non_optimal_n:
                     self.report({'ERROR'}, "Canceled: more than {0} non-optimal matches.".format(max_non_optimal_n))
                     return None
