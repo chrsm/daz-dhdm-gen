@@ -11,8 +11,8 @@ using namespace OpenSubdiv;
 
 
 DhdmWriter::DhdmWriter( const dhdm::Mesh *base_mesh, const dhdm::Mesh *hd_mesh,
-                        const FilepathsInfo* fps_info ) :
-    base_mesh(base_mesh), hd_mesh(hd_mesh), fps_info(fps_info)
+                        const FilepathsInfo* fps_info, const std::set<uint32_t> *edited_vis ) :
+    base_mesh(base_mesh), hd_mesh(hd_mesh), fps_info(fps_info), edited_vis(edited_vis)
 {
 }
 
@@ -183,16 +183,20 @@ void DhdmWriter::calculateDhdm()
                         throw std::runtime_error( fmt::format("Vertex index {} not found in hd_mesh.\n",
                                                   vi) );
                     }
+                    if (edited_vis->count(vi) == 0)
+                        continue;
                     const glm::dvec3 & hd_vert = hd_mesh->vertices[vi].pos;
                     delta = hd_vert - vert;
                 }
                 else
                 {
+                    if (edited_vis->count(vert_idx) == 0)
+                        continue;
                     const glm::dvec3 & hd_vert = hd_mesh->vertices[vert_idx].pos;
                     delta = hd_vert - vert;
                 }
 
-                const double minimum_disp = 1e-2;
+                const double minimum_disp = 1e-5;
                 if (glm::length(delta) > minimum_disp)
                 {
                     const uint32_t submat_idx = uint32_t( subface_idx / subFaceOffsetFactor );

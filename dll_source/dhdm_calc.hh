@@ -7,7 +7,7 @@ class DhdmWriter
 {
 public:
     DhdmWriter( const dhdm::Mesh *base_mesh, const dhdm::Mesh *hd_mesh,
-                const FilepathsInfo* fps_info );
+                const FilepathsInfo* fps_info, const std::set<uint32_t> *edited_vis );
 
     void calculateDhdm();
     void writeDhdm(const std::string filepath);
@@ -56,6 +56,7 @@ private:
     const dhdm::Mesh * base_mesh;
     const dhdm::Mesh * hd_mesh;
     const FilepathsInfo* fps_info;
+    const std::set<uint32_t> * edited_vis;
     DhdmFileData dhdm_fd;
 
     void calc_inverse_dhdm_mats( std::vector< std::vector<glm::dmat3x3> > & mats,

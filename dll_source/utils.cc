@@ -65,7 +65,7 @@ bool endswith ( const std::string & p, const std::string & suf ) {
 }
 
 
-uint32_t relative_subd_level(dhdm::Mesh base_mesh, dhdm::Mesh hd_mesh)
+uint32_t relative_subd_level(const dhdm::Mesh & base_mesh, const dhdm::Mesh & hd_mesh)
 {
     const unsigned int n_faces_b = base_mesh.faces.size();
     const unsigned int n_faces_h = hd_mesh.faces.size();
@@ -76,3 +76,21 @@ uint32_t relative_subd_level(dhdm::Mesh base_mesh, dhdm::Mesh hd_mesh)
     return (uint32_t) n;
 }
 
+std::set<uint32_t> get_hd_disp_mask( const dhdm::Mesh & noeditedhdMesh,
+                                     const dhdm::Mesh & editedhdMesh )
+{
+    if (noeditedhdMesh.vertices.size() != editedhdMesh.vertices.size())
+    {
+        throw std::runtime_error( fmt::format("Vertex count mismatch between noeditedhdMesh and editedhdMesh: {}, {}",
+                                              noeditedhdMesh.vertices.size(), editedhdMesh.vertices.size()) );
+    }
+
+    std::set<uint32_t> edited_vis;
+    for (size_t i = 0; i < editedhdMesh.vertices.size(); i++)
+    {
+        if ( glm::length(editedhdMesh.vertices[i].pos - noeditedhdMesh.vertices[i].pos) > 1e-6 )
+            edited_vis.insert(i);
+    }
+
+    return edited_vis;
+}

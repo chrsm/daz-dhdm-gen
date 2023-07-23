@@ -6,7 +6,7 @@ from . import operator_match_gen
 bl_info = {
     'name': 'daz dhdm generator',
     'author': 'Xin',
-    'version': (0, 0, 1),
+    'version': (0, 0, 2),
     'blender': (3, 6, 0),
     'location': '3d view > N panel > dhdm tab',
     'description': 'Generate .dhdm files from Blender meshes',

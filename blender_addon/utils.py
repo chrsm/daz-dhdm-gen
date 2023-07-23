@@ -153,7 +153,7 @@ def create_unsubdivide_multires(ob):
     bpy.ops.object.select_all(action='DESELECT')
 
 def create_subsurf_modifier(ob, use_limit=False):
-    sd = ob.modifiers.new("daz_hd_morphs_subsurf", 'SUBSURF')
+    sd = ob.modifiers.new("daz_dhdm_gen_subsurf", 'SUBSURF')
     sd.show_only_control_edges = True
     sd.use_limit_surface = use_limit
     sd.uv_smooth = 'PRESERVE_CORNERS'
@@ -163,7 +163,7 @@ def create_subsurf_modifier(ob, use_limit=False):
     return sd
 
 def create_multires_modifier(ob):
-    mr = ob.modifiers.new("daz_hd_morphs_multires", 'MULTIRES')
+    mr = ob.modifiers.new("daz_dhdm_gen_multires", 'MULTIRES')
     mr.show_only_control_edges = True
     mr.quality = 4
     # ~ mr.subdivision_type = 'CATMULL_CLARK'

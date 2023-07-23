@@ -40,15 +40,21 @@ DLL_EXPORT int generate_dhdm_file( const MeshInfo* mesh_info,
         dhdm::gScale = mesh_info->gScale;
         const std::string fp_base = std::string(mesh_info->base_exportedf) + ".obj";
         const std::string fp_hd_edit = std::string(mesh_info->base_exportedf) + "_hd_edit.obj";
-
         dhdm::Mesh baseMesh = dhdm::Mesh::fromObj( fp_base, false, false, true );
         dhdm::Mesh editedhdMesh = dhdm::Mesh::fromObj( fp_hd_edit, false, false, true );
 
-        DhdmWriter dhdm_writer(&baseMesh, &editedhdMesh, fps_info); // nullptr);
+        std::set<uint32_t> edited_vis;
+        {
+            const std::string fp_hd_no_edit = std::string(mesh_info->base_exportedf) + "_hd_no_edit.obj";
+            dhdm::Mesh noeditedhdMesh = dhdm::Mesh::fromObj( fp_hd_no_edit, false, false, true );
+            edited_vis = get_hd_disp_mask(noeditedhdMesh, editedhdMesh);
+        }
+        std::cout << fmt::format("Number of vertices detected as edited: {}.\n", edited_vis.size());
+
+        DhdmWriter dhdm_writer(&baseMesh, &editedhdMesh, fps_info, &edited_vis); // nullptr, &edited_vis);
         dhdm_writer.calculateDhdm();
 
-        const std::string dhdm_filename(output_filename);
-        const std::string dhdm_filepath( std::string(output_dirpath) + "/" + dhdm_filename + ".dhdm" );
+        const std::string dhdm_filepath( std::string(output_dirpath) + "/" + std::string(output_filename) + ".dhdm" );
         dhdm_writer.writeDhdm(dhdm_filepath);
 
         return 0;

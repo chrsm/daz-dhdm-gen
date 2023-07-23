@@ -94,6 +94,8 @@ std::vector<std::string> split( const std::string & p, const std::string & d );
 
 bool endswith( const std::string & p, const std::string & suf );
 
-uint32_t relative_subd_level(dhdm::Mesh base_mesh, dhdm::Mesh hd_mesh);
+uint32_t relative_subd_level(const dhdm::Mesh & base_mesh, const dhdm::Mesh & hd_mesh);
+
+std::set<uint32_t> get_hd_disp_mask(const dhdm::Mesh & noeditedhdMesh, const dhdm::Mesh & editedhdMesh);
 
 #endif // UTILS_H_INCLUDED

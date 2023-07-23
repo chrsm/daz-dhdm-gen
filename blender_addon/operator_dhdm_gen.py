@@ -168,12 +168,28 @@ class GenerateNewMorphFiles(dhdmGenBaseOperator):
         print("Generating dhdm file...")
         filepaths_list = self.mfiles.get_filepaths(self.hd_level)
 
-        f_name = "base"
-        fp_base = self.export_ob_obj( self.base_ob, f_name, apply_modifiers=False )
-        # ~ fp_base = self.export_ob_obj( self.hd_ob, f_name, apply_modifiers=False )
+        f_name_base = "base"
+        fp_base = self.export_ob_obj( self.base_ob, f_name_base, apply_modifiers=False )
+        # ~ fp_base = self.export_ob_obj( self.hd_ob, f_name_base, apply_modifiers=False )
+
+        ob_base_copy = utils.copy_object(self.base_ob)
+        ob_base_copy.modifiers.clear()
+        ob_base_copy.vertex_groups.clear()
+        ob_base_copy.data.materials.clear()
+        utils.remove_shape_keys(ob_base_copy)
+        utils.delete_uv_layers(ob_base_copy)
+        mr = utils.create_multires_modifier(ob_base_copy)
+        utils.make_single_active(ob_base_copy)
+        for _ in range(0, self.hd_level):
+            bpy.ops.object.multires_subdivide(modifier=mr.name, mode='CATMULL_CLARK')
+        ob_base_copy.parent = None
+        f_name = f_name_base + "_hd_no_edit"
+        fp_hd_no_edit = self.export_ob_obj( ob_base_copy, f_name, apply_modifiers=True )
+        utils.delete_object(ob_base_copy)
+        del mr, ob_base_copy
 
         hd_ob_ms = utils.ModifiersStatus(self.hd_ob, 'ENABLE_ONLY', m_types={'SUBDIV'})
-        f_name += "_hd_edit"
+        f_name = f_name_base + "_hd_edit"
         fp_hd_edit = self.export_ob_obj( self.hd_ob, f_name, apply_modifiers=True )
         hd_ob_ms.restore()
         del hd_ob_ms
