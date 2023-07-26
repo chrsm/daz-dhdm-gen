@@ -21,7 +21,7 @@ class MatchedFiles:
         for level in range(1, max_level+1):
             fp = self.matched.get(level)
             if fp is None:
-                raise RuntimeError("Call with missing matching files")
+                raise RuntimeError("get_filepaths(): missing matching files")
             filepaths.append(fp)
         return filepaths
 
@@ -46,7 +46,10 @@ class dhdmGenBaseOperator(bpy.types.Operator):
     cleanup_files = None
     saved_settings = None
     hd_ob = None
+    base_subdiv_method = None
     dsf_fp = None
+    apply_dsf_base_morph = None
+    morph_name = None
 
     @classmethod
     def poll(cls, context):
@@ -55,7 +58,7 @@ class dhdmGenBaseOperator(bpy.types.Operator):
     def invoke(self, context, event):
         return self.execute(context)
 
-    def check_input(self, context, check_hd=False, check_dsf=False):
+    def check_input(self, context, check_hd=False):
         scn = context.scene
         addon_props = scn.daz_dhdm_gen
 
@@ -82,6 +85,7 @@ class dhdmGenBaseOperator(bpy.types.Operator):
                 self.report({'ERROR'}, "HD mesh has fewer vertices than base mesh.")
                 return False
             self.hd_ob = hd_ob
+            self.base_subdiv_method = addon_props.base_subdiv_method
 
         working_dirpath = addon_props.working_dirpath
         if not working_dirpath.strip():
@@ -103,7 +107,9 @@ class dhdmGenBaseOperator(bpy.types.Operator):
         self.matching_files_dir = matching_files_dir
         self.mfiles = MatchedFiles(self.base_ob, self.matching_files_dir)
 
-        if check_dsf:
+        self.dsf_fp = None
+        self.apply_dsf_base_morph = None
+        if not addon_props.only_dhdm:
             dsf_fp = os.path.abspath( bpy.path.abspath( addon_props.dsf_file_template ) )
             if not utils.has_extension( dsf_fp, "dsf" ):
                 self.report({'ERROR'}, "Invalid .dsf file.")
@@ -112,9 +118,15 @@ class dhdmGenBaseOperator(bpy.types.Operator):
                 self.report({'ERROR'}, ".dsf file not found.")
                 return False
             self.dsf_fp = dsf_fp
+            self.apply_dsf_base_morph = addon_props.apply_dsf_base_morph
+
+        morph_name = addon_props.morph_name.strip()
+        if not re.match(r"^\w+$", morph_name):
+            self.report({'ERROR'}, "Morph name given is not valid.")
+            return False
+        self.morph_name = morph_name
 
         self.save_settings(context)
-
         return True
 
     def check_all_matching_files(self, hd_level):

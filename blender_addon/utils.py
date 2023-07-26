@@ -433,3 +433,42 @@ def apply_only_base_multiresolution_modifier(ob):
             break
         else:
             ob.modifiers.remove(m)
+
+def subdivide_object_m(ob, m, levels):
+    assert(m.type in ('SUBSURF', 'MULTIRES'))
+
+    if m.type == 'SUBSURF':
+        sd = ob.modifiers.new("daz_dhdm_gen_subsurf", 'SUBSURF')
+        sd.show_only_control_edges = True
+        sd.use_limit_surface = m.use_limit_surface
+        sd.quality = m.quality
+        sd.uv_smooth = m.uv_smooth
+        sd.boundary_smooth = m.boundary_smooth
+        sd.use_creases = m.use_creases
+        sd.use_custom_normals = m.use_custom_normals
+        sd.levels = levels
+    else:
+        mr = ob.modifiers.new("daz_dhdm_gen_multires", 'MULTIRES')
+        mr.show_only_control_edges = True
+        mr.quality = m.quality
+        mr.uv_smooth = m.uv_smooth
+        mr.boundary_smooth = m.boundary_smooth
+        mr.use_creases = m.use_creases
+        mr.use_custom_normals = m.use_custom_normals
+        make_single_active(ob)
+        for _ in range(0, levels):
+            bpy.ops.object.multires_subdivide(modifier=mr.name, mode='CATMULL_CLARK')
+
+def subdivide_object(ob, method, levels):
+    assert(method in ('SUBSURF', 'SUBSURF_LIMIT', 'MULTIRES'))
+    if method in ('SUBSURF', 'SUBSURF_LIMIT'):
+        sd = ob.modifiers.new("daz_dhdm_gen_subsurf", 'SUBSURF')
+        sd.show_only_control_edges = True
+        sd.use_limit_surface = (method == 'SUBSURF_LIMIT')
+        sd.levels = levels
+    else:
+        mr = ob.modifiers.new("daz_dhdm_gen_multires", 'MULTIRES')
+        mr.show_only_control_edges = True
+        make_single_active(ob)
+        for _ in range(0, levels):
+            bpy.ops.object.multires_subdivide(modifier=mr.name, mode='CATMULL_CLARK')
