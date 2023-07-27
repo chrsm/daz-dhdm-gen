@@ -17,7 +17,6 @@ struct MeshInfo
     float gScale;
     char* base_exportedf;
     unsigned short hd_level;
-    bool is_subd_daz;
     short load_uv_layers;
 };
 

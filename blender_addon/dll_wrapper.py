@@ -28,14 +28,12 @@ class MeshInfo(ctypes.Structure):
     _fields_ = [ ("gScale", ctypes.c_float ),
                  ("base_exportedf", ctypes.c_char_p),
                  ("hd_level", ctypes.c_ushort),
-                 ("is_subd_daz", ctypes.c_bool),
                  ("load_uv_layers", ctypes.c_short) ]
 
-    def __init__( self, gScale, base_exportedf, load_uv_layers=-1, hd_level=0, is_subd_daz=False ):
+    def __init__( self, gScale, base_exportedf, load_uv_layers=-1, hd_level=0 ):
         self.gScale = ctypes.c_float(gScale)
         self.base_exportedf = str_2_char_p(base_exportedf)
         self.hd_level = ctypes.c_ushort(hd_level)
-        self.is_subd_daz = ctypes.c_bool(is_subd_daz)
         self.load_uv_layers = ctypes.c_short(load_uv_layers)
 
 
@@ -67,11 +65,11 @@ class DHDM_DLL_Wrapper:
 
 
     def generate_dhdm_file( self,
-                            gScale, base_exportedf, hd_level, is_subd_daz,
+                            gScale, base_exportedf, hd_level,
                             outputDirpath, outputFilename,
                             filepaths_list ):
 
-        mesh_info = MeshInfo( gScale, base_exportedf, hd_level=hd_level, is_subd_daz=is_subd_daz )
+        mesh_info = MeshInfo( gScale, base_exportedf, hd_level=hd_level )
         fps_info = FilepathsInfo( filepaths_list )
 
         r = self.dll.generate_dhdm_file( ctypes.byref(mesh_info),

@@ -47,11 +47,6 @@ DLL_EXPORT int generate_dhdm_file( const MeshInfo* mesh_info,
         {
             const std::string fp_hd_no_edit = std::string(mesh_info->base_exportedf) + "_hd_no_edit.obj";
             dhdm::Mesh noeditedhdMesh = dhdm::Mesh::fromObj( fp_hd_no_edit, false, false, true );
-            if ( mesh_info->is_subd_daz )
-            {
-                noeditedhdMesh.subdivide_simple( mesh_info->hd_level );
-                fps_info = nullptr;
-            }
             edited_vis = get_hd_disp_mask(noeditedhdMesh, editedhdMesh);
         }
         std::cout << fmt::format("Number of vertices detected as edited: {}.\n", edited_vis.size());

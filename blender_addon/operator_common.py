@@ -11,24 +11,36 @@ class MatchedFiles:
         self.matched = {}
         for root, dirs, files in os.walk(files_dir):
             for fn in files:
-                fn_fingerprint, fn_levels = utils.get_info_from_filename(fn)
-                if fn_fingerprint is not None and fn_fingerprint == self.fingerprint:
-                    self.matched[fn_levels] = os.path.join(root, fn)
+                fn_fingerprint, fn_levels, fn_mrm = utils.get_info_from_filename(fn)
+                if (fn_fingerprint is not None) and (fn_fingerprint == self.fingerprint):
+                    if fn_mrm not in self.matched:
+                        self.matched[fn_mrm] = {}
+                    self.matched[fn_mrm][fn_levels] = os.path.join(root, fn)
             break
 
-    def get_filepaths(self, max_level):
+    def get_suffix(self, base_subdiv_method):
+        assert(base_subdiv_method in ('MULTIRES', 'MULTIRES_REC'))
+        if base_subdiv_method == 'MULTIRES_REC':
+            return "mrr"
+        return "mr"
+
+    def get_filepaths(self, max_level, base_subdiv_method):
+        mrm = self.get_suffix(base_subdiv_method)
         filepaths = []
+        if mrm not in self.matched:
+            raise RuntimeError("get_filepaths(): missing matching files")
         for level in range(1, max_level+1):
-            fp = self.matched.get(level)
+            fp = self.matched[mrm].get(level)
             if fp is None:
                 raise RuntimeError("get_filepaths(): missing matching files")
             filepaths.append(fp)
         return filepaths
 
-    def get_missing_levels(self, max_level):
+    def get_missing_levels(self, max_level, base_subdiv_method):
+        mrm = self.get_suffix(base_subdiv_method)
         missing_levels = []
         for level in range(1, max_level+1):
-            if level not in self.matched:
+            if (mrm not in self.matched) or (level not in self.matched[mrm]):
                 missing_levels.append(level)
         return missing_levels
 
@@ -45,11 +57,12 @@ class dhdmGenBaseOperator(bpy.types.Operator):
     base_ob_copy = None
     cleanup_files = None
     saved_settings = None
+
     hd_ob = None
     base_subdiv_method = None
-    dsf_fp = None
-    apply_dsf_base_morph = None
+    morphed_base_ob = None
     morph_name = None
+    dsf_fp = None
 
     @classmethod
     def poll(cls, context):
@@ -58,7 +71,7 @@ class dhdmGenBaseOperator(bpy.types.Operator):
     def invoke(self, context, event):
         return self.execute(context)
 
-    def check_input(self, context, check_hd=False):
+    def check_input(self, context, check_hd, check_dsf, check_morph_name):
         scn = context.scene
         addon_props = scn.daz_dhdm_gen
 
@@ -84,6 +97,19 @@ class dhdmGenBaseOperator(bpy.types.Operator):
             if len(hd_ob.data.vertices) < len(self.base_ob.data.vertices):
                 self.report({'ERROR'}, "HD mesh has fewer vertices than base mesh.")
                 return False
+            self.morphed_base_ob = None
+            if addon_props.base_morphs == 'BASE_MORPHED':
+                if addon_props.morphed_base_ob not in scn.objects:
+                    self.report({'ERROR'}, "Morphed base mesh not found in the scene.")
+                    return False
+                morphed_base_ob = scn.objects[ addon_props.morphed_base_ob ]
+                if not morphed_base_ob or morphed_base_ob.type != 'MESH':
+                    self.report({'ERROR'}, "Invalid morphed base mesh.")
+                    return False
+                if len(self.base_ob.data.vertices) != len(morphed_base_ob.data.vertices):
+                    self.report({'ERROR'}, "Morphed base mesh's vertex count doesn't match base mesh's.")
+                    return False
+                self.morphed_base_ob = morphed_base_ob
             self.hd_ob = hd_ob
             self.base_subdiv_method = addon_props.base_subdiv_method
 
@@ -108,8 +134,7 @@ class dhdmGenBaseOperator(bpy.types.Operator):
         self.mfiles = MatchedFiles(self.base_ob, self.matching_files_dir)
 
         self.dsf_fp = None
-        self.apply_dsf_base_morph = None
-        if not addon_props.only_dhdm:
+        if check_dsf and (not addon_props.only_dhdm):
             dsf_fp = os.path.abspath( bpy.path.abspath( addon_props.dsf_file_template ) )
             if not utils.has_extension( dsf_fp, "dsf" ):
                 self.report({'ERROR'}, "Invalid .dsf file.")
@@ -118,19 +143,20 @@ class dhdmGenBaseOperator(bpy.types.Operator):
                 self.report({'ERROR'}, ".dsf file not found.")
                 return False
             self.dsf_fp = dsf_fp
-            self.apply_dsf_base_morph = addon_props.apply_dsf_base_morph
 
-        morph_name = addon_props.morph_name.strip()
-        if not re.match(r"^\w+$", morph_name):
-            self.report({'ERROR'}, "Morph name given is not valid.")
-            return False
-        self.morph_name = morph_name
+        self.morph_name = None
+        if check_morph_name:
+            morph_name = addon_props.morph_name.strip()
+            if not re.match(r"^\w+$", morph_name):
+                self.report({'ERROR'}, "Morph name given is not valid.")
+                return False
+            self.morph_name = morph_name
 
         self.save_settings(context)
         return True
 
     def check_all_matching_files(self, hd_level):
-        missing_levels = self.mfiles.get_missing_levels(hd_level)
+        missing_levels = self.mfiles.get_missing_levels(hd_level, self.base_subdiv_method)
         if len(missing_levels) > 0:
             self.report({'ERROR'}, "Matching files for levels {0} missing. Try generating them.".format(missing_levels))
             return False

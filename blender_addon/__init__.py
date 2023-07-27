@@ -6,7 +6,7 @@ from . import operator_match_gen
 bl_info = {
     'name': 'daz dhdm generator',
     'author': 'Xin',
-    'version': (0, 0, 2),
+    'version': (0, 0, 5),
     'blender': (3, 6, 0),
     'location': '3d view > N panel > dhdm tab',
     'description': 'Generate .dhdm files from Blender meshes',
@@ -27,23 +27,27 @@ class dhdmGenProperties(bpy.types.PropertyGroup):
 
     hd_ob:              bpy.props.StringProperty( name="HD mesh", description= "HD mesh" )
 
-    only_dhdm:          bpy.props.BoolProperty(name="Only .dhdm", default=False, description="Generate .dhdm file only")
+    base_subdiv_method: bpy.props.EnumProperty( name = "Subdiv method",
+                                                items = ( ('MULTIRES', "From direct multires", "hd mesh has a (non-applied) multiresolution modifier"),
+                                                          ('MULTIRES_REC', "From hd morphs with multires", "hd mesh was generated with daz_hd_morphs addon"), ),
+                                                default = 'MULTIRES',
+                                                description = "Subdivision method used to generate the hd mesh"
+                                               )
 
-    dsf_file_template:  bpy.props.StringProperty(subtype="FILE_PATH", name="Template .dsf file")
+    base_morphs: bpy.props.EnumProperty( name = "Base morphs",
+                                         items = ( ('HD_MESH', "From hd mesh", "Use base level of hd mesh as base morph data"),
+                                                   ('BASE_MORPHED', "From morphed base mesh", "Get base morph data from morphed base mesh"), ),
+                                         default = 'HD_MESH',
+                                         description = "Base morph data used by the new morph"
+                                       )
+
+    morphed_base_ob:   bpy.props.StringProperty( name="Morphed base mesh", description="Base mesh morphed with the base morphs used to derive the hd mesh" )
 
     morph_name:  bpy.props.StringProperty(name="New morph name", description="New morph name (without extension)", default="")
 
-    base_subdiv_method: bpy.props.EnumProperty( name = "Subdiv method",
-                                                items = ( ('SUBSURF', "Applied subsurf (limit surface off)", "Blender subsurface modifier (limit surface off) has been applied to the hd mesh"),
-                                                          ('SUBSURF_LIMIT', "Applied subsurf (limit surface on)", "Blender subsurface modifier (limit suface on) has been applied to the hd mesh"),
-                                                          ('MULTIRES', "Applied multires", "Blender multiresolution modifier has been applied has been applied to the hd mesh"),
-                                                          ('DAZ', "daz", "Applied daz subdivision"),
-                                                          ('MODIFIER', "From modifier", "hd mesh has a (non-applied) subdivision modifier"), ),
-                                                default = 'MODIFIER',
-                                                description = "Subdivision method you used to obtain the hd mesh from the base mesh"
-                                                )
+    only_dhdm:          bpy.props.BoolProperty(name="Only .dhdm", default=False, description="Generate .dhdm file only (without .dsf file)")
 
-    apply_dsf_base_morph: bpy.props.BoolProperty(name="With .dsf base morph", default=False, description="hd mesh had .dsf file base morph applied")
+    dsf_file_template:  bpy.props.StringProperty(subtype="FILE_PATH", name="Template .dsf file")
 
 
 class AddonPanel:
@@ -95,6 +99,11 @@ class PANEL_PT_dhdmGenHDPanel(AddonPanel, bpy.types.Panel):
         row = layout.row()
         row.prop(addon_props, "base_subdiv_method")
         row = layout.row()
+        row.prop(addon_props, "base_morphs")
+        if addon_props.base_morphs == 'BASE_MORPHED':
+            row = layout.row()
+            row.prop_search(addon_props, "morphed_base_ob", context.scene, "objects")
+        row = layout.row()
         row.prop(addon_props, "morph_name")
         row = layout.row()
         row.prop(addon_props, "only_dhdm")
@@ -103,6 +112,7 @@ class PANEL_PT_dhdmGenHDPanel(AddonPanel, bpy.types.Panel):
             row.prop(addon_props, "dsf_file_template")
         row = layout.row()
         row.operator(operator_dhdm_gen.GenerateNewMorphFiles.bl_idname)
+
 
 class dazHDCustomPreferences(bpy.types.AddonPreferences):
     bl_idname = __name__

@@ -136,11 +136,10 @@ def create_unsubdivide_multires(ob):
         # ~ ob.modifiers.clear()
         # ~ remove_shape_keys(ob)
 
-    mr = ob.modifiers.new("hd_multires", 'MULTIRES')
+    mr = ob.modifiers.new("daz_dhdm_gen_multires", 'MULTIRES')
 
     mr.show_only_control_edges = True
     mr.quality = 4
-    # ~ mr.subdivision_type = 'CATMULL_CLARK'
     mr.uv_smooth = 'PRESERVE_CORNERS'
     mr.boundary_smooth = 'ALL'
     mr.use_creases = True
@@ -166,7 +165,6 @@ def create_multires_modifier(ob):
     mr = ob.modifiers.new("daz_dhdm_gen_multires", 'MULTIRES')
     mr.show_only_control_edges = True
     mr.quality = 4
-    # ~ mr.subdivision_type = 'CATMULL_CLARK'
     mr.uv_smooth = 'PRESERVE_CORNERS'
     mr.boundary_smooth = 'ALL'
     mr.use_creases = True
@@ -392,10 +390,10 @@ def get_fingerprint(ob):
     return "{0}-{1}-{2}".format( len(ob.data.vertices), len(ob.data.edges), len(ob.data.polygons) )
 
 def get_info_from_filename(filename):
-    r = re.search(r'^f(\d+-\d+-\d+)_div(\d)\.json$', filename)
+    r = re.search(r'^f(\d+-\d+-\d+)_div(\d)_(mr|mrr)\.json$', filename)
     if r is None:
-        return None, None
-    return r.group(1), int(r.group(2))
+        return None, None, None
+    return r.group(1), int(r.group(2)), r.group(3)
 
 def copy_file(fp, target_dir, target_filename=None):
     if not os.path.isdir(target_dir):

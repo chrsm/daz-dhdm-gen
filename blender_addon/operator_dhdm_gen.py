@@ -13,19 +13,18 @@ class GenerateNewMorphFiles(dhdmGenBaseOperator):
     hd_level = None
     subd_m = None
     morph_files_diroutput = None
-    base_ob_morphed = None
 
-    blend_to_dz_mat = Matrix( [ (1, 0, 0),
-                                (0, 0, 1),
-                                (0, -1, 0) ] )
+    blend_to_dz_mat = Matrix([ (1, 0,  0),
+                               (0, 0,  1),
+                               (0, -1, 0) ])
 
     def execute(self, context):
         t0 = time.perf_counter()
-        if not self.check_input(context, check_hd=True):
+        if not self.check_input(context, check_hd=True, check_dsf=True, check_morph_name=True):
             return {'CANCELLED'}
         if not self.get_hd_level():
             return {'CANCELLED'}
-        if (self.base_subdiv_method != 'DAZ') and (not self.check_all_matching_files(self.hd_level)):
+        if not self.check_all_matching_files(self.hd_level):
             return {'CANCELLED'}
         self.morph_files_diroutput = self.create_new_morphs_subdir()
 
@@ -65,32 +64,20 @@ class GenerateNewMorphFiles(dhdmGenBaseOperator):
 
     def get_hd_level(self):
         subd_level, subd_m = self.get_subdiv_modifier_info(self.hd_ob)
-        if self.base_subdiv_method != 'MODIFIER':
-            if subd_m is not None:
-                self.report({'ERROR'}, "Invalid subdiv method given: hd mesh has subdivision modifier.")
-                return False
-            diff = utils.get_subdivision_level(self.base_ob, self.hd_ob)
-            if diff <= 0:
-                self.report({'ERROR'}, "hd mesh is not subdivided.")
-                return False
-            self.hd_level = diff
-            self.subd_m = None
-        else: # MODIFIER
-            if subd_m is None:
-                self.report({'ERROR'}, "Invalid subdiv method given: hd mesh has no subdivision modifier.")
-                return False
-            if len(self.hd_ob.data.vertices) != len(self.base_ob.data.vertices):
-                self.report({'ERROR'}, "hd mesh's base level's vertex count doesn't match base mesh's.")
-                return False
-            self.hd_level = subd_level
-            self.subd_m = subd_m
+        if (subd_m is None) or (subd_m.type != 'MULTIRES'):
+            self.report({'ERROR'}, "hd mesh has no multiresolution modifier.")
+            return False
+        if subd_level <= 0:
+            self.report({'ERROR'}, "hd mesh is not subdivided.")
+            return False
+        if len(self.hd_ob.data.vertices) != len(self.base_ob.data.vertices):
+            self.report({'ERROR'}, "hd mesh's base level's vertex count doesn't match base mesh's.")
+            return False
+        self.hd_level = subd_level
+        self.subd_m = subd_m
         return True
 
     def get_base_morph_info(self, context):
-        if self.base_subdiv_method != 'MODIFIER':
-            self.base_ob_morphed = None
-            return None # use base morph data from .dsf template
-
         ob_base_copy = utils.copy_object(self.base_ob)
         ob_base_copy.modifiers.clear()
         ob_base_copy.vertex_groups.clear()
@@ -100,39 +87,30 @@ class GenerateNewMorphFiles(dhdmGenBaseOperator):
         ob_base_copy.parent = None
         ob_base_copy.matrix_world.translation = (0, 0, 0)
 
-        # ~ hd_ob_copy_0 = utils.copy_object(ob_base_copy)
-        # ~ mr = utils.create_multires_modifier(hd_ob_copy_0)
-        # ~ utils.make_single_active(hd_ob_copy_0)
-        # ~ for _ in range(0, self.hd_level):
-            # ~ bpy.ops.object.multires_subdivide(modifier=mr.name, mode='CATMULL_CLARK')
-        # ~ bpy.ops.object.multires_base_apply(modifier=mr.name)
-        # ~ mr.levels = 0
-        # ~ utils.apply_only_base_multiresolution_modifier(hd_ob_copy_0)
-        # ~ initial_deltas = {}
-        # ~ for i, v in enumerate(ob_base_copy.data.vertices):
-            # ~ initial_deltas[i] = Vector( hd_ob_copy_0.data.vertices[i].co - v.co )
-        # ~ utils.delete_object(hd_ob_copy_0)
+        ob_base_morphed_copy = None
+        if self.morphed_base_ob is not None:
+            ob_base_morphed_copy = utils.copy_object(self.morphed_base_ob)
+            utils.apply_shape_keys(ob_base_morphed_copy)
+        else:
+            ob_base_morphed_copy = utils.copy_object(self.hd_ob)
+            utils.remove_shape_keys(ob_base_morphed_copy)
+        ob_base_morphed_copy.modifiers.clear()
+        ob_base_morphed_copy.vertex_groups.clear()
+        ob_base_morphed_copy.data.materials.clear()
+        utils.delete_uv_layers(ob_base_morphed_copy)
+        ob_base_morphed_copy.parent = None
+        ob_base_morphed_copy.matrix_world.translation = (0, 0, 0)
 
-        hd_ob_copy = utils.copy_object(self.hd_ob)
-        hd_ob_copy.modifiers.clear()
-        hd_ob_copy.vertex_groups.clear()
-        hd_ob_copy.data.materials.clear()
-        utils.remove_shape_keys(hd_ob_copy)
-        utils.delete_uv_layers(hd_ob_copy)
-        hd_ob_copy.parent = None
-        hd_ob_copy.matrix_world.translation = (0, 0, 0)
-
-        assert( len(hd_ob_copy.data.vertices) == len(ob_base_copy.data.vertices) )
+        assert( len(ob_base_morphed_copy.data.vertices) == len(ob_base_copy.data.vertices) )
         delta_dz_min_len = 0.01
         deltas_values = []
         for i, v in enumerate(ob_base_copy.data.vertices):
-            delta_blend = Vector( hd_ob_copy.data.vertices[i].co - v.co ) #- initial_deltas[i]
+            delta_blend = Vector( ob_base_morphed_copy.data.vertices[i].co - v.co )
             delta_dz = (1.0 / self.gScale) * (self.blend_to_dz_mat @ delta_blend)
             if delta_dz.length > delta_dz_min_len:
                 deltas_values.append( [i, delta_dz[0], delta_dz[1], delta_dz[2]] )
-
         utils.delete_object(ob_base_copy)
-        self.base_ob_morphed = hd_ob_copy
+        utils.delete_object(ob_base_morphed_copy)
 
         base_morph_info = {}
         base_morph_info["count"] = len(deltas_values)
@@ -170,47 +148,30 @@ class GenerateNewMorphFiles(dhdmGenBaseOperator):
 
     def generate_dhdm_file(self, context):
         print("Generating dhdm file...")
-        filepaths_list = []
-        if self.base_subdiv_method != 'DAZ':
-            filepaths_list = self.mfiles.get_filepaths(self.hd_level)
+        filepaths_list = self.mfiles.get_filepaths(self.hd_level, self.base_subdiv_method)
 
-        base_ob = self.base_ob
-        dsf_to_apply = None
-        if self.dsf_fp is not None:
-            dsf_to_apply = self.dsf_fp
-            if self.base_ob_morphed is not None:
-                base_ob = self.base_ob_morphed
-                dsf_to_apply = None
-            if not self.apply_dsf_base_morph:
-                dsf_to_apply = None
+        base_ob_copy = None
+        if self.morphed_base_ob is not None:
+            base_ob_copy = utils.copy_object(self.morphed_base_ob)
+            utils.apply_shape_keys(base_ob_copy)
+        else:
+            base_ob_copy = utils.copy_object(self.hd_ob)
+            utils.remove_shape_keys(base_ob_copy)
+        base_ob_copy.modifiers.clear()
+        base_ob_copy.vertex_groups.clear()
+        base_ob_copy.data.materials.clear()
+        utils.delete_uv_layers(base_ob_copy)
+        base_ob_copy.parent = None
+        base_ob_copy.matrix_world.translation = (0, 0, 0)
 
         f_name_base = "base"
-        fp_base = self.export_ob_obj( base_ob, f_name_base, apply_modifiers=False )
-        # ~ fp_base = self.export_ob_obj( base_ob, f_name_base, apply_modifiers=False )
+        fp_base = self.export_ob_obj( base_ob_copy, f_name_base, apply_modifiers=False )
 
-        ob_base_copy = utils.copy_object(base_ob)
-        ob_base_copy.modifiers.clear()
-        ob_base_copy.vertex_groups.clear()
-        ob_base_copy.data.materials.clear()
-        utils.remove_shape_keys(ob_base_copy)
-        utils.delete_uv_layers(ob_base_copy)
-        ob_base_copy.parent = None
-        is_subd_daz = False
-        if self.subd_m is not None: # self.base_subdiv_method == 'MODIFIER'
-            utils.subdivide_object_m(ob_base_copy, self.subd_m, self.hd_level)
-        elif self.base_subdiv_method in ('SUBSURF', 'SUBSURF_LIMIT', 'MULTIRES'):
-            utils.subdivide_object(ob_base_copy, self.base_subdiv_method, self.hd_level)
-        else: # self.base_subdiv_method == 'DAZ'
-            is_subd_daz = True
+        utils.subdivide_object_m(base_ob_copy, self.subd_m, self.hd_level)
         f_name = f_name_base + "_hd_no_edit"
-        fp_hd_no_edit = self.export_ob_obj( ob_base_copy, f_name, apply_modifiers=True )
-        utils.delete_object(ob_base_copy)
-        del ob_base_copy
-
-        if self.base_ob_morphed is not None:
-            utils.delete_object(self.base_ob_morphed)
-            self.base_ob_morphed = None
-        del base_ob
+        fp_hd_no_edit = self.export_ob_obj( base_ob_copy, f_name, apply_modifiers=True )
+        utils.delete_object(base_ob_copy)
+        del base_ob_copy
 
         hd_ob_ms = utils.ModifiersStatus(self.hd_ob, 'ENABLE_ONLY', m_types={'SUBDIV'})
         f_name = f_name_base + "_hd_edit"
@@ -219,7 +180,7 @@ class GenerateNewMorphFiles(dhdmGenBaseOperator):
         del hd_ob_ms
 
         dll_wrapper.execute_in_new_thread( "generate_dhdm_file",
-                                           self.gScale, fp_base, self.hd_level, is_subd_daz,
+                                           self.gScale, fp_base, self.hd_level,
                                            self.morph_files_diroutput, self.morph_name,
                                            filepaths_list )
 
