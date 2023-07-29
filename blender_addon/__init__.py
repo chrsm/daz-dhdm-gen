@@ -6,7 +6,7 @@ from . import operator_match_gen
 bl_info = {
     'name': 'daz dhdm generator',
     'author': 'Xin',
-    'version': (0, 0, 5),
+    'version': (0, 0, 6),
     'blender': (3, 6, 0),
     'location': '3d view > N panel > dhdm tab',
     'description': 'Generate .dhdm files from Blender meshes',
@@ -29,7 +29,7 @@ class dhdmGenProperties(bpy.types.PropertyGroup):
 
     base_subdiv_method: bpy.props.EnumProperty( name = "Subdiv method",
                                                 items = ( ('MULTIRES', "From direct multires", "hd mesh has a (non-applied) multiresolution modifier"),
-                                                          ('MULTIRES_REC', "From hd morphs with multires", "hd mesh was generated with daz_hd_morphs addon"), ),
+                                                          ('MULTIRES_REC', "From daz_hd_morphs multires", "hd mesh was generated with daz_hd_morphs addon"), ),
                                                 default = 'MULTIRES',
                                                 description = "Subdivision method used to generate the hd mesh"
                                                )
@@ -41,11 +41,11 @@ class dhdmGenProperties(bpy.types.PropertyGroup):
                                          description = "Base morph data used by the new morph"
                                        )
 
-    morphed_base_ob:   bpy.props.StringProperty( name="Morphed base mesh", description="Base mesh morphed with the base morphs used to derive the hd mesh" )
+    morphed_base_ob:  bpy.props.StringProperty( name="Morphed base mesh", description="Base mesh morphed with the base morphs used to derive the hd mesh" )
 
     morph_name:  bpy.props.StringProperty(name="New morph name", description="New morph name (without extension)", default="")
 
-    only_dhdm:          bpy.props.BoolProperty(name="Only .dhdm", default=False, description="Generate .dhdm file only (without .dsf file)")
+    only_dhdm:  bpy.props.BoolProperty(name="Only .dhdm", default=False, description="Generate .dhdm file only (without .dsf file)")
 
     dsf_file_template:  bpy.props.StringProperty(subtype="FILE_PATH", name="Template .dsf file")
 

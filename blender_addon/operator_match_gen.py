@@ -18,6 +18,8 @@ class GenerateMatching(dhdmGenBaseOperator):
     force_new:  bpy.props.BoolProperty( name="Overwrite all", default=False,
                                         description="Force generation of files for all subdivision levels, overwriting any existing compatible files" )
 
+    with_mrr = None
+
     def invoke(self, context, event):
         wm = context.window_manager
         return wm.invoke_props_dialog(self)
@@ -37,11 +39,16 @@ class GenerateMatching(dhdmGenBaseOperator):
         if not self.check_input(context, check_hd=False, check_dsf=False, check_morph_name=False):
             return {'CANCELLED'}
 
+        self.with_mrr = True
         r = self.generate_matches(context)
         self.cleanup(context)
         if not r:
             return {'CANCELLED'}
-        self.report({'INFO'}, "Matching file/s generated.")
+
+        if self.with_mrr:
+            self.report({'INFO'}, "Matching file/s generated.")
+        else:
+            self.report({'WARNING'}, "File/s generated only for direct subdiv method (see console output).")
         print("Elapsed: {}".format(time.perf_counter() - t0))
         return {'FINISHED'}
 
@@ -60,9 +67,11 @@ class GenerateMatching(dhdmGenBaseOperator):
         utils.remove_shape_keys(ob_base_copy)
         utils.delete_uv_layers(ob_base_copy)
         ob_base_copy.vertex_groups.clear()
-        ob_base_copy.data.materials.clear()
         ob_base_copy.parent = None
         ob_base_copy.matrix_world.translation = (0, 0, 0)
+
+        ob_base_copy_2 = utils.copy_object(ob_base_copy)
+        ob_base_copy.data.materials.clear()
 
         f_name = "base"
         fp_base = self.export_ob_obj( ob_base_copy, f_name, apply_modifiers=False )
@@ -78,6 +87,8 @@ class GenerateMatching(dhdmGenBaseOperator):
             missing_levels_mrr = self.mfiles.get_missing_levels(self.hd_level_max, 'MULTIRES_REC')
 
         if (len(missing_levels_mr) == 0) and (len(missing_levels_mrr) == 0):
+            utils.delete_object(ob_base_copy)
+            utils.delete_object(ob_base_copy_2)
             self.report({'INFO'}, "Matching file/s already exist.")
             return False
 
@@ -91,13 +102,12 @@ class GenerateMatching(dhdmGenBaseOperator):
                 continue
             print("Performing matching for level {0}...".format(level))
 
-            outputFilename = "{0}-div{1}".format(utils.makeValidFilename(self.base_ob.name), level)
-            dll_wrapper.execute_in_new_thread( "generate_hd_mesh",
-                                               self.gScale, fp_base, level,
-                                               outputDirpath, outputFilename )
-            hd_dz_ob = utils.import_dll_obj(os.path.join(outputDirpath, outputFilename + ".obj"))
-
             if level in missing_levels_mr:
+                outputFilename = "{0}-div{1}".format(utils.makeValidFilename(self.base_ob.name), level)
+                dll_wrapper.execute_in_new_thread( "generate_hd_mesh",
+                                                   self.gScale, fp_base, level,
+                                                   outputDirpath, outputFilename )
+                hd_dz_ob = utils.import_dll_obj(os.path.join(outputDirpath, outputFilename + ".obj"))
                 ds = context.evaluated_depsgraph_get()
                 ob_base_copy_eval = ob_base_copy.evaluated_get(ds)
                 if len(hd_dz_ob.data.vertices) != len(ob_base_copy_eval.data.vertices):
@@ -105,45 +115,56 @@ class GenerateMatching(dhdmGenBaseOperator):
                 print("Matching vertices by distance (mr)...")
                 gm = self.create_matching_map_distance( ob_base_copy_eval, hd_dz_ob )
                 if gm is None:
+                    self.report({'ERROR'}, "Matching between meshes not found.")
                     utils.delete_object(hd_dz_ob)
                     utils.delete_object(ob_base_copy)
                     return False
                 print("Done matching vertices (mr).")
+                print()
                 try:
                     self.create_matching_file(gm, level, "mr")
                 except Exception as e:
                     utils.delete_object(ob_base_copy)
-                    utils.delete_object(hd_dz_ob)
-                    self.report({'ERROR'}, "Generation of matching file failed.")
-                    raise e
-
-            if level in missing_levels_mrr:
-                hd_dz_ob_copy = utils.copy_object(hd_dz_ob)
-                utils.create_unsubdivide_multires(hd_dz_ob_copy)
-                ds = context.evaluated_depsgraph_get()
-                hd_dz_ob_copy_eval = hd_dz_ob_copy.evaluated_get(ds)
-                if len(hd_dz_ob.data.vertices) != len(hd_dz_ob_copy_eval.data.vertices):
-                    raise RuntimeError("Vertex count mismatch.")
-                print("Matching vertices by distance (mrr)...")
-                gm = self.create_matching_map_distance( hd_dz_ob_copy_eval, hd_dz_ob )
-                if gm is None:
-                    utils.delete_object(hd_dz_ob)
-                    utils.delete_object(hd_dz_ob_copy)
-                    return False
-                print("Done matching vertices (mrr).")
-                try:
-                    self.create_matching_file(gm, level, "mrr")
-                except Exception as e:
-                    utils.delete_object(ob_base_copy)
-                    utils.delete_object(hd_dz_ob)
+                    utils.delete_object(ob_base_copy_2)
                     self.report({'ERROR'}, "Generation of matching file failed.")
                     raise e
                 finally:
-                    utils.delete_object(hd_dz_ob_copy)
+                    utils.delete_object(hd_dz_ob)
 
-            utils.delete_object(hd_dz_ob)
+            if (self.with_mrr) and (level in missing_levels_mrr):
+                hd_dz_ob = utils.api_generate_simple_hd_mesh(context, ob_base_copy_2, level, self.gScale, outputDirpath)
+                if hd_dz_ob is None:
+                    print("Required addon \"daz_hd_morphs\" not found or function api_generate_simple_hd_mesh() failed.")
+                    self.with_mrr = False
+                else:
+                    hd_dz_ob_copy = utils.copy_object(hd_dz_ob)
+                    utils.create_unsubdivide_multires(hd_dz_ob_copy)
+                    ds = context.evaluated_depsgraph_get()
+                    hd_dz_ob_copy_eval = hd_dz_ob_copy.evaluated_get(ds)
+                    if len(hd_dz_ob.data.vertices) != len(hd_dz_ob_copy_eval.data.vertices):
+                        raise RuntimeError("Vertex count mismatch.")
+                    print("Matching vertices by distance (mrr)...")
+                    gm = self.create_matching_map_distance( hd_dz_ob_copy_eval, hd_dz_ob )
+                    if gm is None:
+                        self.report({'ERROR'}, "Matching between meshes not found.")
+                        utils.delete_object(hd_dz_ob)
+                        utils.delete_object(hd_dz_ob_copy)
+                        return False
+                    print("Done matching vertices (mrr).")
+                    print()
+                    try:
+                        self.create_matching_file(gm, level, "mrr")
+                    except Exception as e:
+                        utils.delete_object(ob_base_copy)
+                        utils.delete_object(ob_base_copy_2)
+                        self.report({'ERROR'}, "Generation of matching file failed.")
+                        raise e
+                    finally:
+                        utils.delete_object(hd_dz_ob)
+                        utils.delete_object(hd_dz_ob_copy)
 
         utils.delete_object(ob_base_copy)
+        utils.delete_object(ob_base_copy_2)
         return True
 
     def create_matching_map_distance(self, hd_mr_ob, hd_dz_ob):

@@ -102,7 +102,7 @@ class GenerateNewMorphFiles(dhdmGenBaseOperator):
         ob_base_morphed_copy.matrix_world.translation = (0, 0, 0)
 
         assert( len(ob_base_morphed_copy.data.vertices) == len(ob_base_copy.data.vertices) )
-        delta_dz_min_len = 0.01
+        delta_dz_min_len = 1e-3
         deltas_values = []
         for i, v in enumerate(ob_base_copy.data.vertices):
             delta_blend = Vector( ob_base_morphed_copy.data.vertices[i].co - v.co )
@@ -159,7 +159,6 @@ class GenerateNewMorphFiles(dhdmGenBaseOperator):
             utils.remove_shape_keys(base_ob_copy)
         base_ob_copy.modifiers.clear()
         base_ob_copy.vertex_groups.clear()
-        base_ob_copy.data.materials.clear()
         utils.delete_uv_layers(base_ob_copy)
         base_ob_copy.parent = None
         base_ob_copy.matrix_world.translation = (0, 0, 0)
@@ -167,10 +166,24 @@ class GenerateNewMorphFiles(dhdmGenBaseOperator):
         f_name_base = "base"
         fp_base = self.export_ob_obj( base_ob_copy, f_name_base, apply_modifiers=False )
 
-        utils.subdivide_object_m(base_ob_copy, self.subd_m, self.hd_level)
         f_name = f_name_base + "_hd_no_edit"
-        fp_hd_no_edit = self.export_ob_obj( base_ob_copy, f_name, apply_modifiers=True )
-        utils.delete_object(base_ob_copy)
+        if self.base_subdiv_method == 'MULTIRES':
+            base_ob_copy.data.materials.clear()
+            utils.subdivide_object_m(base_ob_copy, self.subd_m, self.hd_level)
+            fp_hd_no_edit = self.export_ob_obj( base_ob_copy, f_name, apply_modifiers=True )
+            utils.delete_object(base_ob_copy)
+        else: # MULTIRES_REC
+            outputDirpath = self.create_temporary_subdir()
+            hd_base = utils.api_generate_simple_hd_mesh(context, base_ob_copy, self.hd_level, self.gScale, outputDirpath)
+            utils.delete_object(base_ob_copy)
+            if hd_base is None:
+                print("Required addon \"daz_hd_morphs\" not found or function api_generate_simple_hd_mesh() failed.")
+                self.report({'ERROR'}, "Operator failed (see console output).")
+                return False
+            utils.create_unsubdivide_multires(hd_base)
+            fp_hd_no_edit = self.export_ob_obj( hd_base, f_name, apply_modifiers=True )
+            utils.delete_object(hd_base)
+            del hd_base, outputDirpath
         del base_ob_copy
 
         hd_ob_ms = utils.ModifiersStatus(self.hd_ob, 'ENABLE_ONLY', m_types={'SUBDIV'})

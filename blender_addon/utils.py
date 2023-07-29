@@ -470,3 +470,11 @@ def subdivide_object(ob, method, levels):
         make_single_active(ob)
         for _ in range(0, levels):
             bpy.ops.object.multires_subdivide(modifier=mr.name, mode='CATMULL_CLARK')
+
+def api_generate_simple_hd_mesh(context, ob, hd_level, gScale, outputDirpath):
+    try:
+        from daz_hd_morphs import api
+        r = api.generate_simple_hd_mesh(context, ob, hd_level, gScale, outputDirpath)
+        return r
+    except Exception as e:
+        return None
