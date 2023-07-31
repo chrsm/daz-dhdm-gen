@@ -126,11 +126,15 @@ class dhdmGenBaseOperator(bpy.types.Operator):
             os.mkdir(self.working_dirpath)
         self.cleanup_files = context.preferences.addons[__package__].preferences.delete_temporary_files
 
-        matching_files_dir = os.path.abspath( bpy.path.abspath(addon_props.matching_files_dir) )
-        if not os.path.isdir(matching_files_dir):
+        mfiles_dir = addon_props.matching_files_dir.strip()
+        if (not mfiles_dir):
+            self.report({'ERROR'}, "No matching files directory given.")
+            return False
+        mfiles_dir = os.path.abspath( bpy.path.abspath(mfiles_dir) )
+        if not os.path.isdir(mfiles_dir):
             self.report({'ERROR'}, "Invalid matching files directory.")
             return False
-        self.matching_files_dir = matching_files_dir
+        self.matching_files_dir = mfiles_dir
         self.mfiles = MatchedFiles(self.base_ob, self.matching_files_dir)
 
         self.dsf_fp = None

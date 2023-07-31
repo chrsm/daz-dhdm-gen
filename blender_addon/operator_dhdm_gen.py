@@ -127,9 +127,12 @@ class GenerateNewMorphFiles(dhdmGenBaseOperator):
         dsf_j = utils.get_dsf_json(self.dsf_fp)
         try:
             dsf_orig_id = dsf_j["modifier_library"][0]["id"]
+            dsf_morph = dsf_j["modifier_library"][0]["morph"]
+            vcount = dsf_morph["vertex_count"]
+            if (vcount != -1) and (vcount != len(self.base_ob.data.vertices)):
+                self.report({'ERROR'}, "Template .dsf file is not valid for current Base mesh.")
+                return False
             if base_morph_info is not None:
-                dsf_morph = dsf_j["modifier_library"][0]["morph"]
-                # ~ dsf_morph["vertex_count"] = 10
                 dsf_morph["deltas"]["count"] = base_morph_info["count"]
                 dsf_morph["deltas"]["values"] = base_morph_info["values"]
         except KeyError as e:
