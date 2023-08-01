@@ -47,8 +47,10 @@ class dhdmGenProperties(bpy.types.PropertyGroup):
 
     only_dhdm:  bpy.props.BoolProperty(name="Only .dhdm", default=False, description="Generate .dhdm file only (without .dsf file)")
 
-    dsf_file_template:  bpy.props.StringProperty(subtype="FILE_PATH", name="Template .dsf file")
-
+    dsf_file_template:  bpy.props.StringProperty(subtype="FILE_PATH", name="Template .dsf file",
+                                                 description="Template .dsf file to use to create new .dsf file with HD mesh's base morph data "
+                                                              "and HD mesh's HD morph data (by linking the generated .dhdm file to it). "
+                                                              "The given .dsf file must have \"hd_url\" field")
 
 class AddonPanel:
     bl_space_type = "VIEW_3D"

@@ -6,7 +6,7 @@ from mathutils import Vector, Matrix
 
 
 class GenerateNewMorphFiles(dhdmGenBaseOperator):
-    """Generate .dsf and .dhdm files from a daz base mesh with a multiresolution modifier, either already applied or not"""
+    """Generate .dsf and .dhdm files"""
     bl_idname = "dazdhdmgen.generatenewmorph"
     bl_label = "Generate .dsf/.dhdm files"
 
