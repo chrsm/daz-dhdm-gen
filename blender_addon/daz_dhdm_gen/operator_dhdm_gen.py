@@ -3,6 +3,7 @@ from . import dll_wrapper
 from . import utils
 from .operator_common import dhdmGenBaseOperator
 from mathutils import Vector, Matrix
+from urllib.parse import quote
 
 
 class GenerateNewMorphFiles(dhdmGenBaseOperator):
@@ -13,6 +14,7 @@ class GenerateNewMorphFiles(dhdmGenBaseOperator):
     hd_level = None
     subd_m = None
     morph_files_diroutput = None
+    to_complete = None
 
     blend_to_dz_mat = Matrix([ (1, 0,  0),
                                (0, 0,  1),
@@ -20,29 +22,36 @@ class GenerateNewMorphFiles(dhdmGenBaseOperator):
 
     def execute(self, context):
         t0 = time.perf_counter()
-        if not self.check_input(context, check_hd=True, check_dsf=True, check_morph_name=True):
+        if not self.check_input(context, check_hd=True, check_morph_name=True):
             return {'CANCELLED'}
         if not self.get_hd_level():
             return {'CANCELLED'}
         if not self.check_all_matching_files(self.hd_level):
             return {'CANCELLED'}
         self.morph_files_diroutput = self.create_new_morphs_subdir()
+        self.to_complete = False
+        addon_props = context.scene.daz_dhdm_gen
 
-        if self.dsf_fp is not None:
-            r = self.generate_dsf_file(context)
-            if not r:
-                self.cleanup(context)
-                return {'CANCELLED'}
+        r = self.generate_dsf_file(context)
+        if not r:
+            self.cleanup(context)
+            return {'CANCELLED'}
 
         r = self.generate_dhdm_file(context)
         self.cleanup(context)
         if not r:
             return {'CANCELLED'}
 
-        if self.dsf_fp is not None:
-            self.report({'INFO'}, ".dsf and .dhdm files generated.")
-        else:
+        if (addon_props.output_type == 'DHDM'):
             self.report({'INFO'}, ".dhdm file generated.")
+        elif (addon_props.output_type == 'DSF_BASIC'):
+            if self.to_complete:
+                self.report({'INFO'}, ".dsf and .dhdm files generated, .dsf file must be completed (search \"[TO_COMPLETE]\" in it).")
+            else:
+                self.report({'INFO'}, ".dsf and .dhdm files generated.")
+        else:
+            self.report({'INFO'}, ".dsf and .dhdm files generated.")
+
         print("Elapsed: {}".format(time.perf_counter() - t0))
         return {'FINISHED'}
 
@@ -118,25 +127,70 @@ class GenerateNewMorphFiles(dhdmGenBaseOperator):
         return base_morph_info
 
     def generate_dsf_file(self, context):
-        print("Generating dsf file...")
+        addon_props = context.scene.daz_dhdm_gen
+        if (addon_props.output_type == 'DHDM'):
+            return True
         dsf_new_id = self.morph_name
-        base_morph_info = self.get_base_morph_info(context)
-        self.dsf_fp = utils.copy_file( self.dsf_fp, self.morph_files_diroutput,
-                                       dsf_new_id )
 
-        dsf_j = utils.get_dsf_json(self.dsf_fp)
+        if (addon_props.output_type == 'DSF_TEMPLATE'):
+            dsf_fp_templ = os.path.abspath( bpy.path.abspath(addon_props.dsf_file_template) )
+            if not utils.has_extension( dsf_fp_templ, "dsf" ):
+                self.report({'ERROR'}, "Invalid Template .dsf file.")
+                return False
+            if not os.path.isfile(dsf_fp_templ):
+                self.report({'ERROR'}, "Template .dsf file not found.")
+                return False
+            dsf_fp = utils.copy_file( dsf_fp_templ, self.morph_files_diroutput, dsf_new_id )
+            del dsf_fp_templ
+        else:   # addon_props.output_type == 'DSF_BASIC'
+            dsf_fp_templ = os.path.join(os.path.dirname(__file__), "other_files", "dhdmGenHDMorph.dsf")
+            if not os.path.isfile(dsf_fp_templ):
+                self.report({'ERROR'}, "Basic template .dsf file not found.")
+                return False
+            dsf_fp = utils.copy_file( dsf_fp_templ, self.morph_files_diroutput, dsf_new_id )
+            del dsf_fp_templ
+
+        print("Generating dsf file...")
+        base_morph_info = self.get_base_morph_info(context)
+        dsf_j = utils.get_dsf_json(dsf_fp)
         try:
             dsf_orig_id = dsf_j["modifier_library"][0]["id"]
             dsf_morph = dsf_j["modifier_library"][0]["morph"]
-            vcount = dsf_morph["vertex_count"]
-            if (vcount != -1) and (vcount != len(self.base_ob.data.vertices)):
-                self.report({'ERROR'}, "Template .dsf file is not valid for current Base mesh.")
-                return False
-            if base_morph_info is not None:
-                dsf_morph["deltas"]["count"] = base_morph_info["count"]
-                dsf_morph["deltas"]["values"] = base_morph_info["values"]
+
+            if (addon_props.output_type == 'DSF_BASIC'):
+                dsf_morph["vertex_count"] = len(self.base_ob.data.vertices)
+                dz_dir = addon_props.morph_daz_directory.strip().replace("\\","/")
+                if not dz_dir:
+                    os.remove(dsf_fp)
+                    self.report({'ERROR'}, "No morph daz directory given.")
+                    return False
+                if not dz_dir.startswith('/'):
+                    os.remove(dsf_fp)
+                    self.report({'ERROR'}, "Morph daz directory given is invalid (must start with '/').")
+                    return False
+                dz_dir = quote(dz_dir, safe="/#")
+                dsf_j["asset_info"]["id"] = os.path.join(dz_dir, dsf_orig_id + ".dsf").replace("\\","/")
+                dsf_morph["hd_url"] = dsf_j["asset_info"]["id"].rsplit(".", 1)[0] + ".dhdm"
+                base_ob_url = getattr(self.base_ob, "DazUrl", "").strip()
+                if len(base_ob_url) > 0:
+                    base_ob_url = quote(base_ob_url.replace("\\","/"), safe="/#")
+                    dsf_j["modifier_library"][0]["parent"] = base_ob_url
+                else:
+                    self.to_complete = True
+            else:  # addon_props.output_type == 'DSF_TEMPLATE'
+                vcount = dsf_morph["vertex_count"]
+                if (vcount != -1) and (vcount != len(self.base_ob.data.vertices)):
+                    os.remove(dsf_fp)
+                    self.report({'ERROR'}, "Template .dsf file given is not valid for specified base mesh.")
+                    return False
+                dsf_morph["hd_url"] = dsf_j["asset_info"]["id"].rsplit(".", 1)[0] + ".dhdm"
+
+            dsf_morph["deltas"]["count"] = base_morph_info["count"]
+            dsf_morph["deltas"]["values"] = base_morph_info["values"]
+
         except KeyError as e:
-            self.report({'ERROR'}, ".dsf file given has invalid structure.")
+            os.remove(dsf_fp)
+            self.report({'ERROR'}, ".dsf file has invalid structure.")
             return False
 
         dsf_text = json.dumps(dsf_j)
@@ -145,8 +199,8 @@ class GenerateNewMorphFiles(dhdmGenBaseOperator):
         str_sub = "\g<1>{0}\g<2>".format(dsf_new_id)
         dsf_text = exp.sub(str_sub, dsf_text)
 
-        utils.text_to_json_file(self.dsf_fp, dsf_text, with_gzip=True, indent=4)
-        print("Finished generating .dsf file \"{0}\".".format(self.dsf_fp))
+        utils.text_to_json_file(dsf_fp, dsf_text, with_gzip=(not self.to_complete), indent=4)
+        print("Finished generating .dsf file \"{0}\".".format(dsf_fp))
         return True
 
     def generate_dhdm_file(self, context):

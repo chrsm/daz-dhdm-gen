@@ -62,7 +62,6 @@ class dhdmGenBaseOperator(bpy.types.Operator):
     base_subdiv_method = None
     morphed_base_ob = None
     morph_name = None
-    dsf_fp = None
 
     @classmethod
     def poll(cls, context):
@@ -71,7 +70,7 @@ class dhdmGenBaseOperator(bpy.types.Operator):
     def invoke(self, context, event):
         return self.execute(context)
 
-    def check_input(self, context, check_hd, check_dsf, check_morph_name):
+    def check_input(self, context, check_hd, check_morph_name):
         scn = context.scene
         addon_props = scn.daz_dhdm_gen
 
@@ -136,17 +135,6 @@ class dhdmGenBaseOperator(bpy.types.Operator):
             return False
         self.matching_files_dir = mfiles_dir
         self.mfiles = MatchedFiles(self.base_ob, self.matching_files_dir)
-
-        self.dsf_fp = None
-        if check_dsf and (not addon_props.only_dhdm):
-            dsf_fp = os.path.abspath( bpy.path.abspath( addon_props.dsf_file_template ) )
-            if not utils.has_extension( dsf_fp, "dsf" ):
-                self.report({'ERROR'}, "Invalid .dsf file.")
-                return False
-            if not os.path.isfile(dsf_fp):
-                self.report({'ERROR'}, ".dsf file not found.")
-                return False
-            self.dsf_fp = dsf_fp
 
         self.morph_name = None
         if check_morph_name:

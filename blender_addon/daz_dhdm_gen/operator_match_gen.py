@@ -36,7 +36,7 @@ class GenerateMatching(dhdmGenBaseOperator):
 
     def execute(self, context):
         t0 = time.perf_counter()
-        if not self.check_input(context, check_hd=False, check_dsf=False, check_morph_name=False):
+        if not self.check_input(context, check_hd=False, check_morph_name=False):
             return {'CANCELLED'}
 
         self.with_mrr = True

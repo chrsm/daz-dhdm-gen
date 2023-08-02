@@ -6,7 +6,7 @@ from . import operator_match_gen
 bl_info = {
     'name': 'daz dhdm generator',
     'author': 'Xin',
-    'version': (0, 0, 6),
+    'version': (0, 0, 8),
     'blender': (3, 6, 0),
     'location': '3d view > N panel > dhdm tab',
     'description': 'Generate .dhdm files from Blender meshes',
@@ -45,12 +45,23 @@ class dhdmGenProperties(bpy.types.PropertyGroup):
 
     morph_name:  bpy.props.StringProperty(name="New morph name", description="New morph name (without extension)", default="")
 
-    only_dhdm:  bpy.props.BoolProperty(name="Only .dhdm", default=False, description="Generate .dhdm file only (without .dsf file)")
+    output_type: bpy.props.EnumProperty( name = "Output",
+                                         items = ( ('DHDM', ".dhdm only", "Generate .dhdm file only (without .dsf file)"),
+                                                   ('DSF_TEMPLATE', ".dhdm and .dsf (template)", "Generate .dhdm file and .dsf file from provided template .dsf"),
+                                                   ('DSF_BASIC', ".dhdm and .dsf (basic)", "Generate .dhdm file and .dsf file from generated basic .dsf"),
+                                                  ),
+                                         default = 'DSF_BASIC',
+                                         description = "Output files. .dhdm file is always generated."
+                                       )
 
     dsf_file_template:  bpy.props.StringProperty(subtype="FILE_PATH", name="Template .dsf file",
                                                  description="Template .dsf file to use to create new .dsf file with HD mesh's base morph data "
                                                               "and HD mesh's HD morph data (by linking the generated .dhdm file to it). "
                                                               "The given .dsf file must have \"hd_url\" field")
+
+    morph_daz_directory:    bpy.props.StringProperty( name="Morph daz directory",
+                                                      description="Directory in daz's library where the morph will be located. Relative path."
+                                                                  "For example, \"/data/DAZ 3D/Genesis 8/Female/Morphs/DAZ 3D/Expressions\"")
 
 class AddonPanel:
     bl_space_type = "VIEW_3D"
@@ -108,10 +119,13 @@ class PANEL_PT_dhdmGenHDPanel(AddonPanel, bpy.types.Panel):
         row = layout.row()
         row.prop(addon_props, "morph_name")
         row = layout.row()
-        row.prop(addon_props, "only_dhdm")
-        if not addon_props.only_dhdm:
+        row.prop(addon_props, "output_type")
+        if addon_props.output_type == 'DSF_TEMPLATE':
             row = layout.row()
             row.prop(addon_props, "dsf_file_template")
+        elif addon_props.output_type == 'DSF_BASIC':
+            row = layout.row()
+            row.prop(addon_props, "morph_daz_directory")
         row = layout.row()
         row.operator(operator_dhdm_gen.GenerateNewMorphFiles.bl_idname)
 
