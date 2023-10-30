@@ -154,6 +154,7 @@ class GenerateNewMorphFiles(dhdmGenBaseOperator):
         base_morph_info = self.get_base_morph_info(context)
         dsf_j = utils.get_dsf_json(dsf_fp)
         try:
+            dsf_orig_asset_id = os.path.basename(dsf_j["asset_info"]["id"]).rsplit(".", 1)[0]
             dsf_orig_id = dsf_j["modifier_library"][0]["id"]
             dsf_morph = dsf_j["modifier_library"][0]["morph"]
 
@@ -193,11 +194,30 @@ class GenerateNewMorphFiles(dhdmGenBaseOperator):
             self.report({'ERROR'}, ".dsf file has invalid structure.")
             return False
 
+        if ("scene" in dsf_j) and ("modifiers" in dsf_j["scene"]):
+            dsf_modif = dsf_j["scene"]["modifiers"]
+            n = 0
+            for e in dsf_modif:
+                if (e["id"] == dsf_orig_id) or (e["id"] == dsf_orig_asset_id):
+                    e["id"] = "{}-{}".format(e["id"], n)
+                    n += 1
+            del n, dsf_modif
+
+        if ("modifier_library" in dsf_j):
+            dsf_modif_lib = dsf_j["modifier_library"]
+            for e in dsf_modif_lib:
+                if ("channel" not in e) or ("label" not in e["channel"]):
+                    continue
+                if (e["id"] == dsf_orig_id) or (e["id"] == dsf_orig_asset_id):
+                    e["channel"]["label"] = dsf_new_id
+            del dsf_modif_lib
+
         dsf_text = json.dumps(dsf_j)
-        exp = "([^\w]){0}([^\w])".format(dsf_orig_id)
-        exp = re.compile(exp)
-        str_sub = "\g<1>{0}\g<2>".format(dsf_new_id)
-        dsf_text = exp.sub(str_sub, dsf_text)
+        for dsf_id in [dsf_orig_id, dsf_orig_asset_id]:
+            exp = "([^\w]){0}([^\w])".format(dsf_id)
+            exp = re.compile(exp)
+            str_sub = "\g<1>{0}\g<2>".format(dsf_new_id)
+            dsf_text = exp.sub(str_sub, dsf_text)
 
         utils.text_to_json_file(dsf_fp, dsf_text, with_gzip=(not self.to_complete), indent=4)
         print("Finished generating .dsf file \"{0}\".".format(dsf_fp))
